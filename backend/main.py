@@ -1,27 +1,10 @@
 """
 Agent Service Backend
 
-分层架构:
-    api/        → HTTP 路由 (Controller)
-    service/    → 业务逻辑
-    repository/ → 数据访问
-      db.py           → DuckDB 统一存储
-      sdk_adapter.py      → Claude Agent SDK → DuckDB 同步
-      claude_cli_adapter.py → Claude Code 本地文件 → DuckDB 同步
-      stats_repo.py        → 统计查询
-      session_repo.py      → 会话查询
-    model/
-      do.py     → Domain Objects (内部模型)
-      dto.py    → Data Transfer Objects (API 响应)
-
-数据流:
-    Claude Agent SDK    ──┐
-    Claude Code CLI 裸读 ──┼──→  DuckDB  ──→  API
-    OpenCode (TODO)      ──┘
-
-端点:
-    GET /api/v1/stats/{path}     — 目录树统计
-    GET /api/v1/sessions/{path}  — 会话列表 (游标分页)
+API 结构:
+    /api/v1/user/          → 用户账号
+    /api/v1/workspace/     → 工程面板
+    /api/v1/service/       → 服务面板
 """
 
 from contextlib import asynccontextmanager
@@ -29,8 +12,25 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.stats_api import router as stats_router
-from api.session_api import router as session_router
+# ── Legacy (保留兼容) ────────────────────────────────────────────────
+from api.stats_api import router as legacy_stats_router
+from api.session_api import router as legacy_session_router
+
+# ── User ─────────────────────────────────────────────────────────────
+from api.user_api import router as user_router
+
+# ── Workspace ────────────────────────────────────────────────────────
+from api.workspace_stats_api import router as workspace_stats_router
+from api.workspace_sessions_api import router as workspace_sessions_router
+from api.workspace_members_api import router as workspace_members_router
+from api.workspace_providers_api import router as workspace_providers_router
+from api.workspace_harness_api import router as workspace_harness_router
+from api.workspace_service_inbox_api import router as workspace_service_inbox_router
+
+# ── Service ──────────────────────────────────────────────────────────
+from api.service_info_api import router as service_info_router
+from api.service_conversations_api import router as service_conversations_router
+
 from repository.db import get_conn
 from repository.sdk_adapter import sync as sync_via_sdk
 from repository.claude_cli_adapter import sync as sync_via_cli
@@ -38,15 +38,13 @@ from repository.claude_cli_adapter import sync as sync_via_cli
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. 初始化 DuckDB（建表）
     get_conn()
-    # 2. 从各数据源同步会话到 DuckDB
     sync_via_sdk()
     sync_via_cli()
     yield
 
 
-app = FastAPI(title="Agent Service API", version="0.4.0", lifespan=lifespan)
+app = FastAPI(title="Agent Service API", version="0.5.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,8 +53,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(stats_router)
-app.include_router(session_router)
+# Legacy
+app.include_router(legacy_stats_router)
+app.include_router(legacy_session_router)
+
+# User
+app.include_router(user_router)
+
+# Workspace
+app.include_router(workspace_stats_router)
+app.include_router(workspace_sessions_router)
+app.include_router(workspace_members_router)
+app.include_router(workspace_providers_router)
+app.include_router(workspace_harness_router)
+app.include_router(workspace_service_inbox_router)
+
+# Service
+app.include_router(service_info_router)
+app.include_router(service_conversations_router)
 
 
 if __name__ == "__main__":
