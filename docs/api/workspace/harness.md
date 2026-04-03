@@ -1,6 +1,6 @@
 # Workspace — Harness API
 
-> 管理工程面板的 harness 引擎。Harness 是 agent-service 的执行引擎，决定了 Agent 用什么方式来读写文件、执行命令、与大模型交互。
+> 查询 harness 引擎。Harness 通过配置文件管理（见 [配置文档](../../config/harness.md)），API 仅提供只读查询。
 
 ---
 
@@ -12,38 +12,43 @@
 |------|------|
 | `claude-agent-sdk` | Anthropic 官方 Agent SDK，支持 tool use 和长时间自主执行 |
 | `claude-code-cli` | Claude Code CLI 模式，贴近本地开发体验 |
-| `opencode` | 开源 code agent 引擎 |
+| `opencode` | 开源 code agent 引擎，支持多种大模型供应商 |
 | `openclaw` | 开源多模态 agent 引擎 |
 
 **Harness 与 Provider 的关系：**
 
 - Provider（供应商）是独立的资源池，见 [providers.md](providers.md)
-- Harness 通过**绑定**来选择使用哪些供应商，并为每个绑定指定角色（default / reasoning / fast / local）
-- 不同的 harness 可以绑定同一个供应商
-- 一个 harness 可以绑定多个供应商，按角色区分用途
+- Harness 声明自己支持的 `apiFormats`，不直接绑定具体 provider
+- 运行时根据 provider 的 `apiFormat` 与 harness 的 `apiFormats` 匹配，确定可用的 provider/model
 
 **Harness 与 Session 的关系：**
 
-- 创建 session 时选择使用哪个 harness（不指定则用 default）
-- **session 一旦开始，harness 不可切换**
-- 可以设置一个 **default harness**，新建 session 时自动使用
+- 创建 session 时选择使用哪个 harness 和 provider/model
+- 系统校验 provider 的 `apiFormat` 是否在 harness 的 `apiFormats` 中
+- session 一旦开始，harness 不可切换
 
 ```
 agent-service
-├── providers (独立资源池)
-│   ├── prov-001: anthropic / claude-sonnet-4
-│   ├── prov-002: anthropic / claude-opus-4
-│   └── prov-003: openai / gpt-4o
+├── providers (配置文件声明)
+│   ├── minmax    (apiFormat: openai-completions)
+│   │   ├── kimi-k2-thinking
+│   │   └── kimi-k2
+│   ├── claude    (apiFormat: anthropic)
+│   │   ├── claude-sonnet-4
+│   │   └── claude-opus-4
+│   └── openai    (apiFormat: openai-completions)
+│       ├── gpt-4o
+│       └── o3
 │
 ├── harness: claude-agent-sdk (default)
-│   ├── binding: prov-001 → role: default
-│   └── binding: prov-002 → role: reasoning
+│   └── apiFormats: [anthropic]
+│       → 可用: claude/claude-sonnet-4, claude/claude-opus-4
 ├── harness: opencode
-│   ├── binding: prov-001 → role: default    ← 和上面共享同一个供应商
-│   └── binding: prov-003 → role: reasoning
+│   └── apiFormats: [openai-completions, anthropic, ollama]
+│       → 可用: 所有 provider
 │
-├── session-A → harness: claude-agent-sdk (锁定)
-└── session-B → harness: opencode (锁定)
+├── session-A → harness: claude-agent-sdk + claude/claude-sonnet-4 (锁定)
+└── session-B → harness: opencode + minmax/kimi-k2 (锁定)
 ```
 
 > **TODO：** Harness 插件机制（安装/卸载/版本管理/第三方引擎注册）需要单独设计，当前文档只覆盖已有引擎的配置和使用。
@@ -54,7 +59,7 @@ agent-service
 
 ### GET /api/v1/workspace/harness
 
-> 列出所有已配置的 harness 引擎、绑定关系及 default 设置。
+> 列出所有已配置的 harness 引擎及其支持的 API 格式。
 
 ```
 GET /api/v1/workspace/harness
@@ -63,61 +68,28 @@ GET /api/v1/workspace/harness
 ```json
 {
   "default": "claude-agent-sdk",
-  "engines": [
-    {
-      "id": "claude-agent-sdk",
+  "engines": {
+    "claude-agent-sdk": {
+      "engine": "claude-agent-sdk",
       "name": "Claude Agent SDK",
       "description": "Anthropic 官方 Agent SDK，支持 tool use 和长时间自主执行",
-      "supported_vendors": ["anthropic"],
-      "bindings": [
-        { "provider_id": "prov-001", "vendor": "anthropic", "model": "claude-sonnet-4-20250514", "role": "default" },
-        { "provider_id": "prov-002", "vendor": "anthropic", "model": "claude-opus-4-20250514", "role": "reasoning" }
-      ]
+      "apiFormats": ["anthropic"]
     },
-    {
-      "id": "opencode",
+    "opencode": {
+      "engine": "opencode",
       "name": "OpenCode",
       "description": "开源 code agent 引擎，支持多种大模型供应商",
-      "supported_vendors": ["anthropic", "openai", "deepseek", "google", "ollama"],
-      "bindings": [
-        { "provider_id": "prov-001", "vendor": "anthropic", "model": "claude-sonnet-4-20250514", "role": "default" },
-        { "provider_id": "prov-003", "vendor": "openai", "model": "gpt-4o", "role": "reasoning" }
-      ]
+      "apiFormats": ["openai-completions", "anthropic", "ollama"]
+    },
+    "openclaw": {
+      "engine": "openclaw",
+      "name": "OpenClaw",
+      "description": "开源多模态 agent 引擎",
+      "apiFormats": ["openai-completions"]
     }
-  ]
+  }
 }
 ```
-
-**状态：** 🆕 需新增
-
----
-
-## 设置默认引擎
-
-### PUT /api/v1/workspace/harness/default
-
-> 设置新建 session 时默认使用的 harness 引擎。
-
-```
-PUT /api/v1/workspace/harness/default
-```
-
-```json
-{
-  "engine_id": "opencode"
-}
-```
-
-**响应：**
-
-```json
-{
-  "default": "opencode",
-  "message": "默认引擎已设置为 OpenCode"
-}
-```
-
-仅影响后续新建的 session。已有 session 的 harness 不受影响。
 
 **状态：** 🆕 需新增
 
@@ -125,103 +97,20 @@ PUT /api/v1/workspace/harness/default
 
 ## 查看单个引擎详情
 
-### GET /api/v1/workspace/harness/engines/{engine_id}
+### GET /api/v1/workspace/harness/{harness_id}
 
-> 获取指定引擎的详细信息和供应商绑定。
+> 获取指定引擎的详细信息。
 
 ```
-GET /api/v1/workspace/harness/engines/opencode
+GET /api/v1/workspace/harness/opencode
 ```
 
 ```json
 {
-  "id": "opencode",
+  "engine": "opencode",
   "name": "OpenCode",
   "description": "开源 code agent 引擎，支持多种大模型供应商",
-  "supported_vendors": ["anthropic", "openai", "deepseek", "google", "ollama"],
-  "bindings": [
-    { "provider_id": "prov-001", "vendor": "anthropic", "model": "claude-sonnet-4-20250514", "role": "default" },
-    { "provider_id": "prov-003", "vendor": "openai", "model": "gpt-4o", "role": "reasoning" }
-  ]
-}
-```
-
-**状态：** 🆕 需新增
-
----
-
-## 绑定供应商到引擎
-
-### POST /api/v1/workspace/harness/engines/{engine_id}/bindings
-
-> 将一个已有的供应商绑定到指定引擎，并分配角色。
-
-```
-POST /api/v1/workspace/harness/engines/opencode/bindings
-```
-
-```json
-{
-  "provider_id": "prov-004",
-  "role": "fast"
-}
-```
-
-**响应：**
-
-```json
-{
-  "provider_id": "prov-004",
-  "vendor": "deepseek",
-  "model": "deepseek-coder",
-  "role": "fast"
-}
-```
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| provider_id | string | 是 | 供应商 ID（必须已存在于资源池中）|
-| role | string | 否 | 角色，默认 `default`。可选：`default`、`reasoning`、`fast`、`local` |
-
-**状态：** 🆕 需新增
-
----
-
-## 更新绑定角色
-
-### PUT /api/v1/workspace/harness/engines/{engine_id}/bindings/{provider_id}
-
-> 修改某个绑定的角色。
-
-```
-PUT /api/v1/workspace/harness/engines/opencode/bindings/prov-003
-```
-
-```json
-{
-  "role": "fast"
-}
-```
-
-**状态：** 🆕 需新增
-
----
-
-## 解绑供应商
-
-### DELETE /api/v1/workspace/harness/engines/{engine_id}/bindings/{provider_id}
-
-> 从引擎中移除一个供应商绑定。
-
-```
-DELETE /api/v1/workspace/harness/engines/opencode/bindings/prov-003
-```
-
-**响应：**
-
-```json
-{
-  "message": "已从 OpenCode 解绑供应商 openai/gpt-4o"
+  "apiFormats": ["openai-completions", "anthropic", "ollama"]
 }
 ```
 
@@ -231,33 +120,14 @@ DELETE /api/v1/workspace/harness/engines/opencode/bindings/prov-003
 
 ## 响应模型
 
-### Engine
+### Harness
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| id | string | 引擎标识符 |
+| engine | string | 引擎类型 |
 | name | string | 引擎显示名 |
 | description | string | 引擎描述 |
-| supported_vendors | string[] | 支持的供应商类型列表 |
-| bindings | Binding[] | 已绑定的供应商及角色 |
-
-### Binding
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| provider_id | string | 供应商 ID |
-| vendor | string | 供应商类型（冗余，便于展示）|
-| model | string | 模型名称（冗余，便于展示）|
-| role | string | `default`、`reasoning`、`fast`、`local` |
-
-### Binding role
-
-| role | 说明 |
-|------|------|
-| `default` | 日常任务，引擎默认使用 |
-| `reasoning` | 复杂推理任务 |
-| `fast` | 快速响应，轻量模型 |
-| `local` | 本地模型，无网络依赖 |
+| apiFormats | string[] | 该引擎支持的 API 协议格式列表 |
 
 ---
 
@@ -265,7 +135,5 @@ DELETE /api/v1/workspace/harness/engines/opencode/bindings/prov-003
 
 | 状态码 | 说明 |
 |--------|------|
-| 400 | engine_id 不存在 / provider 的 vendor 不在引擎 supported_vendors 中 |
-| 403 | 无权限（仅成员可操作）|
-| 404 | 引擎或供应商不存在 |
-| 409 | 解绑正在运行中 session 使用的唯一 default 供应商 |
+| 403 | 无权限 |
+| 404 | 引擎不存在 |

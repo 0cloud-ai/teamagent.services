@@ -1,6 +1,6 @@
 # Workspace — Providers API
 
-> 管理大模型供应商。供应商是独立于 harness 的资源池，不同的 harness 引擎可以选择同一个供应商。
+> 查询和测试大模型供应商。供应商通过配置文件管理（见 [配置文档](../../config/providers.md)），API 仅提供查询和连通性测试。
 
 ---
 
@@ -10,24 +10,27 @@
 
 ```
 agent-service
-├── providers (独立资源池)
-│   ├── prov-001: anthropic / claude-sonnet-4
-│   ├── prov-002: anthropic / claude-opus-4
-│   ├── prov-003: openai / gpt-4o
-│   ├── prov-004: deepseek / deepseek-coder
-│   └── prov-005: ollama / qwen3:32b
+├── providers (配置文件声明，每个供应商下挂多个模型)
+│   ├── minmax
+│   │   ├── kimi-k2-thinking
+│   │   └── kimi-k2
+│   ├── claude
+│   │   ├── claude-sonnet-4
+│   │   └── claude-opus-4
+│   └── openai
+│       ├── gpt-4o
+│       └── o3
 │
-├── harness: claude-agent-sdk
-│   └── 使用 → prov-001 (default), prov-002 (reasoning)
 ├── harness: opencode
-│   └── 使用 → prov-001 (default), prov-003 (reasoning), prov-004 (fast)
+│   └── 使用 → claude/claude-sonnet-4 (default), claude/claude-opus-4 (reasoning)
 └── harness: openclaw
-    └── 使用 → prov-003 (default)
+    └── 使用 → openai/gpt-4o (default)
 ```
 
-- 供应商统一配置一次，多个 harness 共享
+- 供应商在 `.teamagent/teamagent.json` 中统一配置，多个 harness 共享
 - 每个 harness 通过绑定关系选择使用哪些供应商，并指定角色（default / reasoning / fast / local）
 - 同一个供应商可以被多个 harness 同时使用
+- 供应商的增删改通过配置文件完成，API 仅提供只读查询和连通性测试
 
 ---
 
@@ -43,144 +46,35 @@ GET /api/v1/workspace/providers
 
 ```json
 {
-  "providers": [
-    {
-      "id": "prov-001",
-      "vendor": "anthropic",
-      "model": "claude-sonnet-4-20250514",
-      "api_base": "https://api.anthropic.com",
+  "providers": {
+    "minmax": {
+      "baseUrl": "https://api.minimax.chat",
+      "apiFormat": "openai-completions",
       "status": "healthy",
-      "used_by": ["claude-agent-sdk", "opencode"],
-      "created_at": "2026-03-20T10:00:00Z"
+      "models": [
+        { "id": "kimi-k2-thinking", "name": "Kimi K2 Thinking", "status": "healthy" },
+        { "id": "kimi-k2", "name": "Kimi K2", "status": "healthy" }
+      ]
     },
-    {
-      "id": "prov-002",
-      "vendor": "anthropic",
-      "model": "claude-opus-4-20250514",
-      "api_base": "https://api.anthropic.com",
+    "claude": {
+      "baseUrl": "https://api.anthropic.com",
+      "apiFormat": "anthropic",
       "status": "healthy",
-      "used_by": ["claude-agent-sdk"],
-      "created_at": "2026-03-20T10:00:00Z"
+      "models": [
+        { "id": "claude-sonnet-4", "name": "Claude Sonnet 4", "status": "healthy" },
+        { "id": "claude-opus-4", "name": "Claude Opus 4", "status": "healthy" }
+      ]
     },
-    {
-      "id": "prov-003",
-      "vendor": "openai",
-      "model": "gpt-4o",
-      "api_base": "https://api.openai.com",
+    "openai": {
+      "baseUrl": "https://api.openai.com",
+      "apiFormat": "openai-completions",
       "status": "healthy",
-      "used_by": ["opencode", "openclaw"],
-      "created_at": "2026-03-22T14:00:00Z"
-    },
-    {
-      "id": "prov-004",
-      "vendor": "deepseek",
-      "model": "deepseek-coder",
-      "api_base": "https://api.deepseek.com",
-      "status": "healthy",
-      "used_by": ["opencode"],
-      "created_at": "2026-03-22T14:00:00Z"
-    },
-    {
-      "id": "prov-005",
-      "vendor": "ollama",
-      "model": "qwen3:32b",
-      "api_base": "http://localhost:11434",
-      "status": "healthy",
-      "used_by": [],
-      "created_at": "2026-03-25T09:00:00Z"
+      "models": [
+        { "id": "gpt-4o", "name": "GPT-4o", "status": "healthy" },
+        { "id": "o3", "name": "o3", "status": "healthy" }
+      ]
     }
-  ]
-}
-```
-
-**状态：** 🆕 需新增
-
----
-
-## 添加供应商
-
-### POST /api/v1/workspace/providers
-
-> 添加一个大模型供应商到资源池。
-
-```
-POST /api/v1/workspace/providers
-```
-
-```json
-{
-  "vendor": "ollama",
-  "model": "qwen3:32b",
-  "api_base": "http://localhost:11434",
-  "api_key": null
-}
-```
-
-**响应：**
-
-```json
-{
-  "id": "prov-005",
-  "vendor": "ollama",
-  "model": "qwen3:32b",
-  "api_base": "http://localhost:11434",
-  "status": "healthy",
-  "used_by": [],
-  "created_at": "2026-03-25T09:00:00Z"
-}
-```
-
-**请求体：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| vendor | string | 是 | 供应商标识：`anthropic`、`openai`、`deepseek`、`google`、`ollama`、`custom` |
-| model | string | 是 | 模型名称 |
-| api_base | string | 否 | API 地址，不传则使用供应商默认地址 |
-| api_key | string | 否 | API 密钥，`ollama` 等本地供应商可为 null |
-
-**状态：** 🆕 需新增
-
----
-
-## 更新供应商
-
-### PUT /api/v1/workspace/providers/{provider_id}
-
-> 更新供应商配置。
-
-```
-PUT /api/v1/workspace/providers/prov-004
-```
-
-```json
-{
-  "model": "deepseek-coder-v2",
-  "api_key": "sk-new-key..."
-}
-```
-
-**响应：** 返回更新后的完整供应商对象。
-
-**状态：** 🆕 需新增
-
----
-
-## 删除供应商
-
-### DELETE /api/v1/workspace/providers/{provider_id}
-
-> 从资源池移除供应商。如果该供应商正被 harness 使用，需要先解绑。
-
-```
-DELETE /api/v1/workspace/providers/prov-005
-```
-
-**响应：**
-
-```json
-{
-  "message": "已移除供应商 ollama/qwen3:32b"
+  }
 }
 ```
 
@@ -190,21 +84,28 @@ DELETE /api/v1/workspace/providers/prov-005
 
 ## 测试连通性
 
-### POST /api/v1/workspace/providers/{provider_id}/ping
+### POST /api/v1/workspace/providers/{provider_name}/ping
 
-> 测试供应商是否可用。
+> 测试供应商是否可用。可选指定模型 ID，不指定则测试供应商连通性。
 
 ```
-POST /api/v1/workspace/providers/prov-001/ping
+POST /api/v1/workspace/providers/claude/ping
+```
+
+```json
+{
+  "model": "claude-sonnet-4"
+}
 ```
 
 **成功：**
 
 ```json
 {
+  "provider": "claude",
+  "model": "claude-sonnet-4",
   "status": "healthy",
   "latency_ms": 234,
-  "model": "claude-sonnet-4-20250514",
   "message": "连通正常"
 }
 ```
@@ -213,6 +114,8 @@ POST /api/v1/workspace/providers/prov-001/ping
 
 ```json
 {
+  "provider": "claude",
+  "model": "claude-sonnet-4",
   "status": "unhealthy",
   "error": "401 Unauthorized: Invalid API key",
   "message": "认证失败，请检查 API 密钥"
@@ -229,24 +132,18 @@ POST /api/v1/workspace/providers/prov-001/ping
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| id | string | 供应商配置 ID |
-| vendor | string | 供应商标识 |
-| model | string | 模型名称 |
-| api_base | string | API 地址 |
+| baseUrl | string | API 地址 |
+| apiFormat | string | API 协议格式 |
 | status | string | `healthy`、`unhealthy`、`unknown` |
-| used_by | string[] | 正在使用该供应商的 harness 引擎 ID 列表 |
-| created_at | datetime | 创建时间 |
+| models | Model[] | 该供应商下的模型列表 |
 
-### 支持的 vendor
+### Model
 
-| vendor | 默认 api_base | 说明 |
-|--------|---------------|------|
-| `anthropic` | `https://api.anthropic.com` | Claude 系列 |
-| `openai` | `https://api.openai.com` | GPT 系列 |
-| `deepseek` | `https://api.deepseek.com` | DeepSeek 系列 |
-| `google` | `https://generativelanguage.googleapis.com` | Gemini 系列 |
-| `ollama` | `http://localhost:11434` | 本地模型 |
-| `custom` | （必须指定） | 自定义 OpenAI 兼容接口 |
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | string | 模型 ID |
+| name | string | 模型显示名称 |
+| status | string | `healthy`、`unhealthy`、`unknown` |
 
 ---
 
@@ -254,7 +151,5 @@ POST /api/v1/workspace/providers/prov-001/ping
 
 | 状态码 | 说明 |
 |--------|------|
-| 400 | 参数校验失败 |
-| 403 | 无权限（仅成员可操作）|
+| 403 | 无权限 |
 | 404 | 供应商不存在 |
-| 409 | 删除时供应商仍被 harness 使用，需先解绑 |
