@@ -1,6 +1,8 @@
 # Service — Conversations API
 
 > 服务面板的对话管理。每个 conversation 是一个服务工单，模型类似 GitHub Issue。
+>
+> 工单数据统一存储在启动目录的 `.teamagent/conversations/` 下（见 [存储格式](../../context/conversations.md)），与目录结构无关。
 
 ---
 

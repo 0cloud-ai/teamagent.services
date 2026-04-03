@@ -1,12 +1,12 @@
 # Workspace — Members API
 
-> 管理 agent-service 的成员。成员是统一的抽象，通过 `type` 区分真人和外部服务。
+> 查询和测试 workspace 成员。成员通过配置文件管理（见 [配置文档](../../config/members.md)），API 仅提供只读查询和连通性测试。
 
 ---
 
 ## 概念
 
-**Member** 是 agent-service 工程面板中的参与者，统一用 `type` 区分：
+**Member** 是 agent-service 工程面板中的参与者，在 `.teamagent/teamagent.json` 的 `members` 字段中配置，统一用 `type` 区分：
 
 | type | 说明 |
 |------|------|
@@ -18,15 +18,17 @@
 - `@设计团队` — Agent 通过对方服务面板发起请求，结果回流到当前会话
 
 ```
-产品团队 agent-service — members:
+产品团队 agent-service — members (配置文件声明):
 ├── 赵琳     (type: user, role: owner)
 ├── 陈霜     (type: user, role: member)
 ├── 小李     (type: user, role: member)
-├── 设计团队  (type: service, service_url: https://design.agent.team.dev)
-├── 前端团队  (type: service, service_url: https://frontend.agent.team.dev)
-├── 支付网关  (type: service, service_url: https://payment.agent.team.dev)
-└── 后端团队  (type: service, service_url: https://backend.agent.team.dev)
+├── 设计团队  (type: service, serviceUrl: https://design.agent.team.dev)
+├── 前端团队  (type: service, serviceUrl: https://frontend.agent.team.dev)
+├── 支付网关  (type: service, serviceUrl: https://payment.agent.team.dev)
+└── 后端团队  (type: service, serviceUrl: https://backend.agent.team.dev)
 ```
+
+- 成员的增删改通过配置文件完成，API 仅提供只读查询和连通性测试
 
 ---
 
@@ -34,7 +36,7 @@
 
 ### GET /api/v1/workspace/members
 
-> 列出所有成员。可按 type 过滤。
+> 读取配置文件中的成员列表。可按 type 过滤。
 
 ```
 GET /api/v1/workspace/members
@@ -48,32 +50,28 @@ GET /api/v1/workspace/members
       "type": "user",
       "name": "赵琳",
       "role": "owner",
-      "email": "zhaolin@company.com",
-      "joined_at": "2026-01-15T10:00:00Z"
+      "email": "zhaolin@company.com"
     },
     {
       "id": "mem-002",
       "type": "user",
       "name": "陈霜",
       "role": "member",
-      "email": "chenshuang@company.com",
-      "joined_at": "2026-02-01T09:00:00Z"
+      "email": "chenshuang@company.com"
     },
     {
       "id": "mem-003",
       "type": "service",
       "name": "设计团队",
-      "service_url": "https://design.agent.team.dev",
-      "status": "connected",
-      "joined_at": "2026-03-20T14:00:00Z"
+      "serviceUrl": "https://design.agent.team.dev",
+      "status": "connected"
     },
     {
       "id": "mem-004",
       "type": "service",
       "name": "支付网关",
-      "service_url": "https://payment.agent.team.dev",
-      "status": "connected",
-      "joined_at": "2026-03-20T14:00:00Z"
+      "serviceUrl": "https://payment.agent.team.dev",
+      "status": "connected"
     }
   ]
 }
@@ -82,137 +80,6 @@ GET /api/v1/workspace/members
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | type | string? | null | 按类型过滤：`user` 或 `service`，不传则返回全部 |
-
-**状态：** 🆕 需新增
-
----
-
-## 添加成员
-
-### POST /api/v1/workspace/members
-
-> 添加一个成员。根据 `type` 传不同的字段。
-
-**添加用户：**
-
-```
-POST /api/v1/workspace/members
-```
-
-```json
-{
-  "type": "user",
-  "email": "xiaoli@company.com",
-  "role": "member"
-}
-```
-
-```json
-{
-  "id": "mem-005",
-  "type": "user",
-  "name": "小李",
-  "email": "xiaoli@company.com",
-  "role": "member",
-  "joined_at": "2026-03-27T10:00:00Z"
-}
-```
-
-**添加外部服务：**
-
-```
-POST /api/v1/workspace/members
-```
-
-```json
-{
-  "type": "service",
-  "name": "后端团队",
-  "service_url": "https://backend.agent.team.dev"
-}
-```
-
-系统自动调用对方 `GET /api/v1/service/info` 验证连通性。
-
-```json
-{
-  "id": "mem-006",
-  "type": "service",
-  "name": "后端团队",
-  "service_url": "https://backend.agent.team.dev",
-  "service_info": {
-    "name": "后端团队",
-    "description": "后端服务开发，支持接口开发和业务逻辑实现",
-    "status": "active"
-  },
-  "status": "connected",
-  "joined_at": "2026-03-27T10:00:00Z"
-}
-```
-
-**请求体：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| type | string | 是 | `user` 或 `service` |
-| email | string | type=user 时必填 | 用户邮箱 |
-| role | string | 否 | type=user 时有效，`owner` 或 `member`，默认 `member` |
-| name | string | type=service 时必填 | 显示名称（用于 @ 提及）|
-| service_url | string | type=service 时必填 | 对方 agent-service 的服务面板地址 |
-
-**状态：** 🆕 需新增
-
----
-
-## 更新成员
-
-### PUT /api/v1/workspace/members/{member_id}
-
-> 更新成员信息。用户可改 role，外部服务可改 name。
-
-**更新用户角色：**
-
-```
-PUT /api/v1/workspace/members/mem-002
-```
-
-```json
-{
-  "role": "owner"
-}
-```
-
-**更新外部服务名称：**
-
-```
-PUT /api/v1/workspace/members/mem-003
-```
-
-```json
-{
-  "name": "设计组"
-}
-```
-
-**状态：** 🆕 需新增
-
----
-
-## 移除成员
-
-### DELETE /api/v1/workspace/members/{member_id}
-
-> 移除成员。不可移除最后一个 owner。
-
-```
-DELETE /api/v1/workspace/members/mem-005
-```
-
-```json
-{
-  "message": "已移除成员 小李"
-}
-```
 
 **状态：** 🆕 需新增
 
@@ -261,7 +128,7 @@ POST /api/v1/workspace/members/mem-003/ping
 在会话中发消息时，可以通过 `mentions` 引用任意成员：
 
 ```
-POST /api/v1/workspace/sessions/{session_id}/messages
+POST /api/v1/workspace/sessions/{session_id}/messages?path=...
 ```
 
 ```json
@@ -291,7 +158,6 @@ POST /api/v1/workspace/sessions/{session_id}/messages
 | id | string | 成员 ID |
 | type | string | `user` 或 `service` |
 | name | string | 显示名称 |
-| joined_at | datetime | 加入时间 |
 
 **type=user 附加字段：**
 
@@ -304,16 +170,8 @@ POST /api/v1/workspace/sessions/{session_id}/messages
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| service_url | string | 对方服务面板地址 |
-| service_info | object? | 对方的服务信息（name, description, status）|
+| serviceUrl | string | 对方服务面板地址 |
 | status | string | `connected` 或 `disconnected` |
-
-### Role（type=user）
-
-| role | 说明 |
-|------|------|
-| `owner` | 所有者，可管理成员、配置 harness/provider、修改服务面板信息 |
-| `member` | 普通成员，可在工程面板中工作 |
 
 ---
 
@@ -321,9 +179,6 @@ POST /api/v1/workspace/sessions/{session_id}/messages
 
 | 状态码 | 说明 |
 |--------|------|
-| 400 | 参数校验失败 / type 与字段不匹配 |
-| 403 | 无权限（成员管理仅 owner 可操作）|
+| 403 | 无权限 |
 | 404 | 成员不存在 |
-| 409 | 用户已是成员 / 外部服务已添加 / 不可移除最后一个 owner |
 | 422 | ping 仅支持 type=service |
-| 502 | 添加外部服务时对方服务面板不可达 |

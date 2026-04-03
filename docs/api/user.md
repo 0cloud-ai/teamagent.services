@@ -1,6 +1,8 @@
 # User API
 
 > 用户账号管理：注册、登录、个人信息。User 是 agent-service 的最顶层身份，决定了你能访问什么。
+>
+> 用户数据存储在启动目录的 `.teamagent/users/` 下（见 [用户上下文](../context/users.md)），每个用户一个 JSON 文件，登录凭据通过 salt + hash 存储。
 
 ---
 
@@ -29,7 +31,7 @@ User: 陈霜
 
 ### POST /api/v1/user/register
 
-> 注册新用户。
+> 注册新用户。在 `.teamagent/users/` 下创建用户文件，生成 salt 并存储密码哈希。
 
 ```
 POST /api/v1/user/register
@@ -61,6 +63,12 @@ POST /api/v1/user/register
 | password | string | 是 | 密码 |
 | name | string | 是 | 显示名称 |
 
+实现：
+1. 扫描 `.teamagent/users/*.json` 检查 email 唯一性
+2. 生成随机 salt，计算 password_hash
+3. 写入 `.teamagent/users/user-{id}.json`
+4. 签发 token 返回
+
 **状态：** 🆕 需新增
 
 ---
@@ -69,7 +77,7 @@ POST /api/v1/user/register
 
 ### POST /api/v1/user/login
 
-> 用户登录，返回 token。
+> 用户登录，读取用户文件验证密码，返回 token。
 
 ```
 POST /api/v1/user/login
@@ -96,6 +104,11 @@ POST /api/v1/user/login
 ```
 
 后续请求通过 `Authorization: Bearer <token>` 携带身份。
+
+实现：
+1. 按 email 扫描 `.teamagent/users/*.json` 找到用户文件
+2. 读取 salt，用 salt + 提交密码计算哈希，与 password_hash 比对
+3. 匹配则签发 token
 
 **状态：** 🆕 需新增
 
@@ -127,7 +140,7 @@ POST /api/v1/user/logout
 
 ### GET /api/v1/user/me
 
-> 获取当前登录用户的信息，以及所关联的 workspace memberships。
+> 读取当前登录用户的文件，返回用户信息及所关联的 workspace memberships。
 
 ```
 GET /api/v1/user/me
@@ -166,7 +179,7 @@ GET /api/v1/user/me
 
 ### PUT /api/v1/user/me
 
-> 更新当前用户的个人信息。
+> 更新当前用户的个人信息，写回用户文件。
 
 ```
 PUT /api/v1/user/me
@@ -188,7 +201,7 @@ PUT /api/v1/user/me
 
 ### PUT /api/v1/user/me/password
 
-> 修改当前用户密码。
+> 修改当前用户密码。验证旧密码后，生成新 salt 和 password_hash，更新用户文件。
 
 ```
 PUT /api/v1/user/me/password

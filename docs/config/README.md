@@ -45,7 +45,11 @@ teamagent.services 采用**配置驱动**架构。服务启动时从工作目录
         "apiFormats": ["anthropic"]
       }
     }
-  }
+  },
+  "members": [
+    { "id": "mem-001", "type": "user", "name": "赵琳", "email": "zhaolin@company.com", "role": "owner" },
+    { "id": "mem-003", "type": "service", "name": "设计团队", "serviceUrl": "https://design.agent.team.dev" }
+  ]
 }
 ```
 
@@ -57,3 +61,4 @@ teamagent.services 采用**配置驱动**架构。服务启动时从工作目录
 |--------|------|
 | providers（供应商） | [providers.md](providers.md) |
 | harnesses（引擎） | [harness.md](harness.md) |
+| members（成员） | [members.md](members.md) |
