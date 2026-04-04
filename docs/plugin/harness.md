@@ -8,16 +8,16 @@
 
 Harness 是 agent-service 的执行引擎。它接收用户消息，在后台启动任务（调用 LLM、执行工具），通过文件监听机制将结果异步回传给系统。
 
-引擎不常驻内存。每次用户发消���时实例化，提交任务后返回一个 `SessionWatcher`，由系统（HarnessService）持有并调度监听。
+引擎不常驻内存。每次用户发消息时实例化，提交任务后返回一个 `SessionWatcher`，由系统（HarnessService）持有并调度监听。
 
 ```
 用户发消息
-  → 系统实例化引擎，调用 submit(path, message, provider)
-  → 引擎���动后台任务，返回 SessionWatcher（file_path + session_id）
-  → HarnessService 持有 watcher，用 watchdog 监听 watcher.file_path
-  → 文件变更 → 系统构造 FileChangeEvent → 调 engine.watch(event)
-  → engine 返回统一结构体 → 系统写入 messages.jsonl
-  → engine.is_done(event) 返回 True → 停止监听
+  -> 系统实��化引擎，调用 submit(path, message, provider)
+  -> 引擎启动后台任务，返回 SessionWatcher（file_path + session_id）
+  -> HarnessService 持有 watcher，用 watchdog 监听 watcher.file_path
+  -> 文件变更 -> 系统构造 FileChangeEvent -> 调 engine.watch(event)
+  -> engine 返回 list[MessageRecord | EventRecord] -> 系统写入 messages.jsonl
+  -> engine.is_done(event) 返回 True -> 停止监听
 ```
 
 ---
@@ -37,7 +37,7 @@ class FileChangeEvent:
     event_type: str            # "modified" | "created"
     file_path: str             # 变更的文件路径
     new_lines: list[dict]      # 本次新增的行（已 json.loads 解析）
-    total_lines: int           # 文件当前总行���
+    total_lines: int           # 文件当前总行数
 ```
 
 系统负责：
@@ -65,11 +65,32 @@ class SessionWatcher:
 ```python
 @dataclass
 class ProviderInfo:
-    name: str                  # provider 配���名（如 "minmax"）
+    name: str                  # provider 配置名（如 "minmax"）
     base_url: str              # API 地址（已做环境变量插值）
-    api_key: str | None        # API 密钥（已做��境变量插值）
+    api_key: str | None        # API 密钥（已做环境变量插值）
     api_format: str            # "anthropic" | "openai-completions" | "ollama"
-    model_id: str              # 模��� ID（如 "kimi-k2"）
+    model_id: str              # 模型 ID（如 "kimi-k2"）
+```
+
+### MessageRecord / EventRecord（系统预置，watch 返回类型）
+
+`watch()` 方法返回的统一结构体。系统自动补充 `id` 和 `created_at` 后写入 messages.jsonl。
+
+```python
+@dataclass
+class MessageRecord:
+    type: str = "message"      # 固定
+    role: str = ""             # "assistant"
+    content: str = ""
+
+
+@dataclass
+class EventRecord:
+    type: str = "event"        # 固定
+    actor: str = ""            # "agent"
+    action: str = ""           # "read_file" | "edit_file" | "create_file" | "delete_file" | "run_command"
+    target: str = ""           # 文件路径或命令
+    detail: str | None = None  # diff 摘要、执行结果等
 ```
 
 ### HarnessEngine（插件实现）
@@ -80,7 +101,7 @@ class HarnessEngine:
 
     id: str                    # 引擎唯一标识
     name: str                  # 引擎显示名称
-    api_formats: list[str]     # 支持的 API 协议格���列表
+    api_formats: list[str]     # 支持的 API 协议格式列表
 
     def submit(self, path: str, message: str,
                provider: ProviderInfo) -> SessionWatcher:
@@ -90,16 +111,16 @@ class HarnessEngine:
         也可以由底层工具创建），通过 SessionWatcher 返回给系统。
 
         Args:
-            path: 工作目录��径
+            path: 工作目录路径
             message: 用户消息内容
-            provider: 系统注入的 provider 连���信息
+            provider: 系统注入的 provider 连接信息
 
         Returns:
             SessionWatcher（file_path + session_id）
         """
         raise NotImplementedError
 
-    def watch(self, event: FileChangeEvent) -> list[dict] | None:
+    def watch(self, event: FileChangeEvent) -> list[MessageRecord | EventRecord] | None:
         """文件变更时由系统（HarnessService）调用。
 
         将引擎特有的 jsonl 格式转换为统一结构体。
@@ -118,28 +139,19 @@ class HarnessEngine:
 
 ## 统一结构体
 
-`watch()` 返回的 dict 必须符合以下格式：
+`watch()` 返回 `list[MessageRecord | EventRecord]`，使用上方定义的 dataclass。
 
-### Message（对话消���）
+示例：
 
-```json
-{
-  "type": "message",
-  "role": "assistant",
-  "content": "Hello! How can I help you today?"
-}
-```
+```python
+# 返回一条 assistant 消息
+MessageRecord(role="assistant", content="Hello! How can I help you today?")
 
-### Event（系统事件）
+# 返回一个文件读取事件
+EventRecord(actor="agent", action="read_file", target="src/main.py")
 
-```json
-{
-  "type": "event",
-  "actor": "agent",
-  "action": "read_file",
-  "target": "src/main.py",
-  "detail": null
-}
+# 返回一个编辑事件，带 diff 摘要
+EventRecord(actor="agent", action="edit_file", target="src/main.py", detail="+28 -3")
 ```
 
 ### 事件 action
@@ -149,21 +161,21 @@ class HarnessEngine:
 | `read_file` | 读取文件 |
 | `edit_file` | 编辑文件，detail 为 diff 摘要 |
 | `create_file` | 创建文件 |
-| `delete_file` | 删除���件 |
-| `run_command` | 执行终端命令，detail 为���果摘要 |
+| `delete_file` | 删除文件 |
+| `run_command` | 执行终端命令，detail 为结果摘要 |
 
-系统会自动补充 `id` 和 `created_at` 字段后写入 messages.jsonl。
+系统会自动补充 `id` 和 `created_at` 字段后序列化写入 messages.jsonl。
 
 ---
 
 ## 插件目录与发现
 
-插件放在 `teamagent/plugins/` 目��下，每个插件一个 Python 文件：
+插件放在 `teamagent/plugins/` 目录下，每个插件一个 Python 文件：
 
 ```
 teamagent/plugins/
 ├── __init__.py
-���── claude_cli.py          # claude -p CLI 插件
+├── claude_cli.py          # claude -p CLI 插件
 └── claude_sdk.py          # claude-agent-sdk 插件
 ```
 
@@ -171,7 +183,7 @@ teamagent/plugins/
 
 ---
 
-## 插件示���：claude-code-cli
+## 插件示例：claude-code-cli
 
 使用 `claude -p` 命令行工具，通过 `--session-id` 指定 session，监听 `~/.claude/projects/{slug}/{session_id}.jsonl`。
 
@@ -205,14 +217,13 @@ class ClaudeCLIEngine(HarnessEngine):
             msg_type = line.get("type")
             if msg_type == "assistant":
                 content = line.get("message", {}).get("content", "")
-                results.append({"type": "message", "role": "assistant", "content": content})
+                results.append(MessageRecord(role="assistant", content=content))
             elif msg_type == "tool_use":
-                results.append({
-                    "type": "event",
-                    "actor": "agent",
-                    "action": line.get("tool", ""),
-                    "target": line.get("input", {}).get("path", ""),
-                })
+                results.append(EventRecord(
+                    actor="agent",
+                    action=line.get("tool", ""),
+                    target=line.get("input", {}).get("path", ""),
+                ))
         return results or None
 
     def is_done(self, event):
@@ -265,14 +276,13 @@ class ClaudeSDKEngine(HarnessEngine):
             msg_type = line.get("type")
             if msg_type == "assistant":
                 content = line.get("message", {}).get("content", "")
-                results.append({"type": "message", "role": "assistant", "content": content})
+                results.append(MessageRecord(role="assistant", content=content))
             elif msg_type == "tool_use":
-                results.append({
-                    "type": "event",
-                    "actor": "agent",
-                    "action": line.get("tool", ""),
-                    "target": line.get("input", {}).get("path", ""),
-                })
+                results.append(EventRecord(
+                    actor="agent",
+                    action=line.get("tool", ""),
+                    target=line.get("input", {}).get("path", ""),
+                ))
         return results or None
 
     def is_done(self, event):
@@ -294,27 +304,28 @@ class ClaudeSDKEngine(HarnessEngine):
 3. 根据 session.harness 查找对应的 HarnessEngine 插件
 
 4. 实例化引擎，调用 engine.submit(path, message, provider)
-   → 引擎启动后台任务
-   → 返回 SessionWatcher（file_path + session_id）
+   -> 引擎启动后台任务
+   -> 返回 SessionWatcher（file_path + session_id）
 
 5. HarnessService 持有 watcher，用 watchdog 监听 watcher.file_path
    （只关注 modified / created）
 
 6. 文件变更时：
    a. 系统计算增量行，构造 FileChangeEvent
-   b. 调 engine.watch(event) → 拿到统一结构体列表
-   c. 写入 messages.jsonl（系统负责，插件不关心写到哪里）
-   d. 调 engine.is_done(event) → True 则停止监听
+   b. 调 engine.watch(event) -> 拿到 list[MessageRecord | EventRecord]
+   c. 系统补充 id 和 created_at，写入 messages.jsonl
+   d. 调 engine.is_done(event) -> True 则停止监听
 ```
 
 ---
 
 ## 约定
 
-1. **引擎不常驻内存** — 每次用户发消息时实例化，submit 后系统持有 SessionWatcher 和 engine 引用
-2. **submit 必须立即返回** — 后台任务异步执行，不阻塞 API 响应
-3. **SessionWatcher 是纯数据对象** — 只有 file_path 和 session_id，不含业务逻辑
-4. **watch() 和 is_done() 在 Engine 上** — 系统调 engine 做格式转换和完成判断
-5. **插件不写 messages.jsonl** — 只返回结构体，系统决定写到哪里（session 或 conversation）
-6. **插件不读配置文件** — provider 信息由系统注入
-7. **session_id 由引擎决定** — 通过 SessionWatcher.session_id 返回给系统
+1. **引擎不常���内存** -- 每次用户发消息时实例化，submit 后系统持有 SessionWatcher 和 engine 引用
+2. **submit 必须立即返回** -- 后台任务异步执行，不阻塞 API 响应
+3. **SessionWatcher 是纯数据对象** -- 只有 file_path 和 session_id，不含业务逻辑
+4. **watch() 和 is_done() 在 Engine 上** -- 系统调 engine 做格式转换和完成判断
+5. **watch() 返回 MessageRecord / EventRecord** -- 不是裸 dict，使用系统预置的结构体
+6. **插件不写 messages.jsonl** -- 只返回结构体，系统决定写到哪里（session 或 conversation）
+7. **插件不读配置文件** -- provider 信息由系统注入
+8. **session_id 由引擎决定** -- 通过 SessionWatcher.session_id 返回给系统
