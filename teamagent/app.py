@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 import os
 
-from teamagent.config.loader import load_config
+from teamagent.config.loader import load_config, ensure_config
 from teamagent.api.user_api import router as user_router
 from teamagent.api.workspace_providers_api import router as providers_router
 from teamagent.api.workspace_harness_api import router as harness_router
@@ -21,6 +21,7 @@ from teamagent.api.workspace_conversations_api import router as workspace_conv_r
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     base_path = Path(os.environ.get("TEAMAGENT_BASE", ".")) / ".teamagent"
+    ensure_config(base_path)
     app.state.base_path = base_path
     app.state.config = load_config(base_path / "teamagent.json")
     app.state.jwt_secret = os.environ.get("JWT_SECRET", "changeme")
