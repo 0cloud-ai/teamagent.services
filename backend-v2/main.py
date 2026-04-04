@@ -14,6 +14,8 @@ from api.workspace_files_api import router as files_router
 from api.workspace_terminal_api import router as terminal_router
 from api.service_info_api import router as service_info_router
 from api.workspace_stats_api import router as stats_router
+from api.service_conversations_api import router as service_conv_router
+from api.workspace_conversations_api import router as workspace_conv_router
 
 
 @asynccontextmanager
@@ -44,6 +46,8 @@ app.include_router(files_router)
 app.include_router(terminal_router)
 app.include_router(service_info_router)
 app.include_router(stats_router)
+app.include_router(service_conv_router)
+app.include_router(workspace_conv_router)
 
 
 @app.get("/health")
