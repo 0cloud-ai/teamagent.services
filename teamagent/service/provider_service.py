@@ -48,14 +48,11 @@ class ProviderService:
         except Exception as e:
             return {"status": "unhealthy", "error": str(e), "message": "连接失败"}
 
-    def _extract_response(self, api_format: str, data: dict) -> str:
-        try:
-            if api_format == "anthropic":
-                return data.get("content", [{}])[0].get("text", "")
-            elif api_format == "openai-completions":
-                return data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            elif api_format == "ollama":
-                return data.get("response", "")
-        except (IndexError, KeyError):
-            pass
-        return str(data)[:200]
+    def _extract_response(self, api_format: str, data: dict):
+        if api_format == "anthropic":
+            return data.get("content", [])
+        elif api_format == "openai-completions":
+            return data.get("choices", [])
+        elif api_format == "ollama":
+            return data.get("response", "")
+        return data
