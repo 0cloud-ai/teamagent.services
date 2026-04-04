@@ -1,4 +1,5 @@
 import argparse
+import logging
 import uvicorn
 
 
@@ -9,6 +10,7 @@ def main():
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     args = parser.parse_args()
 
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     uvicorn.run("teamagent.app:app", host=args.host, port=args.port, reload=args.reload)
 
 

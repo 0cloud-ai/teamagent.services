@@ -1,5 +1,8 @@
+import logging
 import time
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 class ProviderService:
@@ -35,7 +38,10 @@ class ProviderService:
                     return {"status": "unhealthy", "error": f"Unknown apiFormat: {api_format}"}
             latency = int((time.monotonic() - start) * 1000)
             if resp.status_code < 400:
-                response_text = self._extract_response(api_format, resp.json())
+                raw = resp.json()
+                logger.info(f"[ping] provider response raw: {raw}")
+                response_text = self._extract_response(api_format, raw)
+                logger.info(f"[ping] extracted response: {response_text!r}")
                 return {"status": "healthy", "latency_ms": latency, "model": model_id, "response": response_text, "message": "连通正常"}
             else:
                 return {"status": "unhealthy", "error": f"{resp.status_code}: {resp.text[:200]}", "message": "连接失败"}
