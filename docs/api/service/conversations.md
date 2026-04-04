@@ -321,7 +321,7 @@ open
 - 上升（escalate）或关闭（close）对话
 - 在任意 session 中 @引用（如 `@conv-001`），作为工作上下文
 
-详见 [workspace/service-inbox.md](../workspace/service-inbox.md)
+详见 [workspace/conversations.md](../workspace/conversations.md)
 
 ---
 

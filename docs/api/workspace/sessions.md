@@ -275,7 +275,7 @@ POST /api/v1/workspace/sessions/550e8400.../messages?path=/home/linyuanzhou/paym
 }
 ```
 
-`mentions` 统一支持 member（`mem-xxx`）和 conversation（`conv-xxx`），系统根据 ID 自动识别。引用工单时，Agent 可以读取工单的完整上下文来辅助工作。详见 [service-inbox.md](service-inbox.md)。
+`mentions` 统一支持 member（`mem-xxx`）和 conversation（`conv-xxx`），系统根据 ID 自动识别。引用工单时，Agent 可以读取工单的完整上下文来辅助工作。详见 [conversations.md](conversations.md)。
 
 **响应（流式 SSE）：**
 

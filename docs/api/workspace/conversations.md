@@ -1,6 +1,8 @@
-# Workspace — Service Inbox API
+# Workspace — Conversations API
 
 > 在工程面板中查看和管理来自服务面板的工单（conversation）。工单模型类似 GitHub Issue。
+>
+> 与 service/conversations 是同一份数据（`.teamagent/conversations/`）的不同视角，workspace 侧可查看所有工单并进行状态管理。
 
 ---
 
@@ -16,7 +18,7 @@
 ```
 服务面板                          工程面板
 
-conv-001 (open)       ←──查看──→  service inbox
+conv-001 (open)       ←──查看──→  workspace/conversations
 conv-002 (escalated)              ├── 上升 / 关闭 / 打标签
 conv-003 (closed)                 └── 在 session 中 @引用
 
@@ -30,12 +32,12 @@ conv-003 (closed)                 └── 在 session 中 @引用
 
 ## 工单列表
 
-### GET /api/v1/workspace/service-inbox
+### GET /api/v1/workspace/conversations
 
 > 列出所有服务工单，支持按状态和标签过滤。
 
 ```
-GET /api/v1/workspace/service-inbox?status=escalated
+GET /api/v1/workspace/conversations?status=escalated
 ```
 
 ```json
@@ -83,12 +85,12 @@ GET /api/v1/workspace/service-inbox?status=escalated
 
 ## 工单详情
 
-### GET /api/v1/workspace/service-inbox/{conversation_id}
+### GET /api/v1/workspace/conversations/{conversation_id}
 
 > 查看工单的完整对话记录。
 
 ```
-GET /api/v1/workspace/service-inbox/conv-001
+GET /api/v1/workspace/conversations/conv-001
 ```
 
 ```json
@@ -135,12 +137,12 @@ GET /api/v1/workspace/service-inbox/conv-001
 
 ## 上升
 
-### POST /api/v1/workspace/service-inbox/{conversation_id}/escalate
+### POST /api/v1/workspace/conversations/{conversation_id}/escalate
 
 > 将工单标记为上升。Agent 自动触发或 workspace 成员手动触发。
 
 ```
-POST /api/v1/workspace/service-inbox/conv-002/escalate
+POST /api/v1/workspace/conversations/conv-002/escalate
 ```
 
 ```json
@@ -166,12 +168,12 @@ POST /api/v1/workspace/service-inbox/conv-002/escalate
 
 ## 关闭
 
-### POST /api/v1/workspace/service-inbox/{conversation_id}/close
+### POST /api/v1/workspace/conversations/{conversation_id}/close
 
 > 关闭工单。
 
 ```
-POST /api/v1/workspace/service-inbox/conv-001/close
+POST /api/v1/workspace/conversations/conv-001/close
 ```
 
 **响应：**
@@ -192,12 +194,12 @@ POST /api/v1/workspace/service-inbox/conv-001/close
 
 ## 重新打开
 
-### POST /api/v1/workspace/service-inbox/{conversation_id}/reopen
+### POST /api/v1/workspace/conversations/{conversation_id}/reopen
 
 > 重新打开已关闭的工单。
 
 ```
-POST /api/v1/workspace/service-inbox/conv-001/reopen
+POST /api/v1/workspace/conversations/conv-001/reopen
 ```
 
 **响应：**
@@ -215,12 +217,12 @@ POST /api/v1/workspace/service-inbox/conv-001/reopen
 
 ## 更新标签
 
-### PUT /api/v1/workspace/service-inbox/{conversation_id}/labels
+### PUT /api/v1/workspace/conversations/{conversation_id}/labels
 
 > 更新工单的标签。
 
 ```
-PUT /api/v1/workspace/service-inbox/conv-001/labels
+PUT /api/v1/workspace/conversations/conv-001/labels
 ```
 
 ```json
@@ -294,7 +296,7 @@ open
 
 ## 响应模型
 
-### InboxConversation
+### Conversation（workspace 视角）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
