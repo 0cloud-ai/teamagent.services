@@ -97,9 +97,7 @@ export const userApi = {
 export const statsApi = {
   get: (path = "/") =>
     request<StatsResponse>(
-      path === "/"
-        ? "/api/v1/workspace/stats"
-        : `/api/v1/workspace/stats${path}`,
+      `/api/v1/workspace/stats?path=${encodeURIComponent(path)}`,
     ),
 };
 
