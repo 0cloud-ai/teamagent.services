@@ -1,2 +1,3 @@
 .next
 *.egg-info/
+.superpowers/
