@@ -5,7 +5,11 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from teamagent.config.loader import load_config
+from teamagent.harness.registry import discover_plugins
 from teamagent.app import app
+
+# 确保测试时插件已注册（正常启动时在 lifespan 中调用）
+discover_plugins()
 
 
 # ---------------------------------------------------------------------------
@@ -60,23 +64,6 @@ _DEFAULT_CONFIG = {
                 {"id": "gpt-4o", "name": "GPT-4o"},
             ]
         },
-    },
-    "harnesses": {
-        "default": "opencode",
-        "engines": {
-            "claude-agent-sdk": {
-                "engine": "claude-agent-sdk",
-                "name": "Claude Agent SDK",
-                "description": "Anthropic Agent SDK",
-                "apiFormats": ["anthropic"],
-            },
-            "opencode": {
-                "engine": "opencode",
-                "name": "OpenCode",
-                "description": "Open source code agent",
-                "apiFormats": ["openai-completions", "anthropic"],
-            },
-        }
     },
     "members": [
         {"id": "mem-001", "type": "user", "name": "Alice", "email": "alice@test.com", "role": "owner"},

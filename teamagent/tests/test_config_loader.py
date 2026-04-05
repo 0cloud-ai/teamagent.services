@@ -66,25 +66,6 @@ def test_missing_env_var_raises(tmp_path):
         load_config(path)
 
 
-def test_load_harnesses(tmp_path):
-    path = _write_config(tmp_path, {
-        "harnesses": {
-            "default": "opencode",
-            "engines": {
-                "opencode": {
-                    "engine": "opencode",
-                    "name": "OpenCode",
-                    "apiFormats": ["openai-completions", "anthropic"]
-                }
-            }
-        }
-    })
-    cfg = load_config(path)
-    assert cfg.harnesses.default == "opencode"
-    assert "opencode" in cfg.harnesses.engines
-    assert "anthropic" in cfg.harnesses.engines["opencode"].apiFormats
-
-
 def test_load_members(tmp_path):
     path = _write_config(tmp_path, {
         "members": [

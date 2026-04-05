@@ -18,7 +18,6 @@ def _interpolate_env(text: str) -> str:
 
 _DEFAULT_CONFIG = {
     "providers": {},
-    "harnesses": {"default": None, "engines": {}},
     "members": [],
 }
 

@@ -1,22 +1,29 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
-from teamagent.api.deps import get_config
-from teamagent.config.models import AppConfig
+from teamagent.harness.registry import list_engines, get_engine
 
 router = APIRouter(prefix="/api/v1/workspace/harness", tags=["workspace-harness"])
 
 
 @router.get("")
-def list_harness(config: AppConfig = Depends(get_config)):
+def list_harness():
     engines = {}
-    for name, engine in config.harnesses.engines.items():
-        engines[name] = engine.model_dump()
-    return {"default": config.harnesses.default, "engines": engines}
+    for engine_id, cls in list_engines().items():
+        engines[engine_id] = {
+            "id": cls.id,
+            "name": cls.name,
+            "api_formats": cls.api_formats,
+        }
+    return {"engines": engines}
 
 
 @router.get("/{harness_id}")
-def get_harness(harness_id: str, config: AppConfig = Depends(get_config)):
-    engine = config.harnesses.engines.get(harness_id)
+def get_harness(harness_id: str):
+    engine = get_engine(harness_id)
     if engine is None:
         raise HTTPException(status_code=404, detail="Engine not found")
-    return engine.model_dump()
+    return {
+        "id": engine.id,
+        "name": engine.name,
+        "api_formats": engine.api_formats,
+    }

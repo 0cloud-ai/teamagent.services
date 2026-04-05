@@ -1,0 +1,66 @@
+from __future__ import annotations
+
+import uuid
+
+from claude_agent_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ResultMessage,
+    StreamEvent,
+    TextBlock,
+    ToolUseBlock,
+    query,
+)
+
+from teamagent.harness.engine import HarnessEngine
+from teamagent.harness.types import AsyncWatcher, ProviderInfo, Record
+
+
+class ClaudeSDKEngine(HarnessEngine):
+    id = "claude-agent-sdk"
+    name = "Claude Agent SDK"
+    api_formats = ["anthropic"]
+
+    def submit(self, path: str, message: str, provider: ProviderInfo) -> AsyncWatcher:
+        sid = str(uuid.uuid4())
+
+        async def _stream():
+            async for event in query(
+                prompt=message,
+                options=ClaudeAgentOptions(
+                    cwd=path,
+                    model=provider.model_id,
+                ),
+            ):
+                yield event
+
+        return AsyncWatcher(session_id=sid, iterator=_stream())
+
+    def watch(self, event) -> list[Record] | None:
+        """event 是 SDK yield 的原始对象（AssistantMessage / ResultMessage / StreamEvent 等）。"""
+        if isinstance(event, AssistantMessage):
+            text_parts = []
+            tool_records = []
+            for block in event.content:
+                if isinstance(block, TextBlock):
+                    text_parts.append(block.text)
+                elif isinstance(block, ToolUseBlock):
+                    inp = block.input or {}
+                    tool_records.append(Record(
+                        type="event",
+                        actor="agent",
+                        action=block.name,
+                        target=inp.get("file_path", inp.get("path", inp.get("command", ""))),
+                    ))
+            records = []
+            if text_parts:
+                records.append(Record(role="assistant", content="\n".join(text_parts)))
+            records.extend(tool_records)
+            return records or None
+
+        if isinstance(event, ResultMessage):
+            if event.result:
+                return [Record(role="assistant", content=event.result, done=True)]
+            return [Record(role="assistant", content="", done=True)]
+
+        return None

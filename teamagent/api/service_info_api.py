@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 
 from teamagent.api.deps import get_config
 from teamagent.config.models import AppConfig
+from teamagent.harness.registry import list_engines
 
 router = APIRouter(prefix="/api/v1/service", tags=["service-info"])
 
@@ -13,6 +14,6 @@ def get_info(config: AppConfig = Depends(get_config)):
         "version": "2.0.0",
         "status": "active",
         "providers": len(config.providers),
-        "harnesses": len(config.harnesses.engines),
+        "harnesses": len(list_engines()),
         "members": len(config.members),
     }

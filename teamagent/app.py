@@ -5,6 +5,7 @@ from pathlib import Path
 import os
 
 from teamagent.config.loader import load_config, ensure_config
+from teamagent.harness.registry import discover_plugins
 from teamagent.api.user_api import router as user_router
 from teamagent.api.workspace_providers_api import router as providers_router
 from teamagent.api.workspace_harness_api import router as harness_router
@@ -25,6 +26,7 @@ async def lifespan(app: FastAPI):
     app.state.base_path = base_path
     app.state.config = load_config(base_path / "teamagent.json")
     app.state.jwt_secret = os.environ.get("JWT_SECRET", "changeme")
+    discover_plugins()
     yield
 
 

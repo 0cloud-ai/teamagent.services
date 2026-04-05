@@ -3,17 +3,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from teamagent.config.models import AppConfig
+from teamagent.harness.registry import get_engine
 from teamagent.repository.session_repo import SessionRepo
+from teamagent.service.harness_service import HarnessService
 
 
 class SessionService:
     def __init__(self, repo: SessionRepo, config: AppConfig):
         self._repo = repo
         self._config = config
+        self._harness_service = HarnessService()
 
     def create_session(self, path: str, title: str | None, harness: str | None, members: list[str]) -> dict:
-        harness_id = harness or self._config.harnesses.default
-        if harness_id and harness_id not in self._config.harnesses.engines:
+        harness_id = harness or ""
+        if harness_id and get_engine(harness_id) is None:
             raise ValueError(f"Harness '{harness_id}' not found")
         session_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
@@ -88,6 +91,20 @@ class SessionService:
         session["updated_at"] = now
         session["message_count"] = session.get("message_count", 0) + 1
         self._repo.update_session(Path(path), session_id, session)
+
+        # 触发 harness 引擎（后台执行）
+        harness_id = session.get("harness")
+        if harness_id:
+            messages_path = self._repo._session_dir(Path(path), session_id) / "messages.jsonl"
+            self._harness_service.run_harness(
+                harness_id=harness_id,
+                path=path,
+                session_id=session_id,
+                message=content,
+                config=self._config,
+                messages_path=messages_path,
+            )
+
         return message
 
     def get_members(self, path: str, session_id: str) -> list[dict]:
