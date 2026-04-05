@@ -28,7 +28,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const p = path ?? get().currentPath;
     try {
       const data = await statsApi.get(p);
-      set({ children: data.children });
+      // API may return doc-format { name, total } or fs-format { name, type, size }
+      // Normalize: keep only directories, ensure total exists
+      const children = (data.children ?? [])
+        .filter((c: Record<string, unknown>) => !("type" in c) || c.type === "directory")
+        .map((c: Record<string, unknown>) => ({
+          name: c.name as string,
+          total: (c.total as ChildStats["total"]) ?? { directories: 0, sessions: 0, messages: 0 },
+        }));
+      set({ children });
     } catch {
       set({ children: [] });
     }

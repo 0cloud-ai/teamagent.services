@@ -59,7 +59,7 @@ export function DirectoryTree() {
               >
                 <FolderOpen className="size-4" />
                 <span>{child.name}</span>
-                {child.total.sessions > 0 && (
+                {child.total?.sessions > 0 && (
                   <SidebarMenuBadge>{child.total.sessions}</SidebarMenuBadge>
                 )}
               </SidebarMenuButton>
